@@ -40,13 +40,14 @@ setup(
     license="Apache 2.0",
     entry_points='''
         [console_scripts]
-        stockrec=stockrec.cli:cli
+        stockrec=stockrec.cli
     ''',
     data_files=[],
     packages=find_packages(),
     install_requires=['requests',
                       'beautifulsoup4',
-                      'pg8000'],
+                      'pg8000',
+                      'fire'],
     tests_require=['pytest',
                    'nose'],
     test_suite='tests',

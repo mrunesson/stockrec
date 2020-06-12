@@ -1,7 +1,8 @@
 import datetime
+import logging
 
 from stockrec import model
-from typing import List, Optional
+from typing import List
 
 from stockrec.model import Direction, Signal, text_to_signal, text_to_direction
 
@@ -12,6 +13,7 @@ currencies = {
     'danska kronor': 'DKK',
     'norska kronor': 'NOK',
     'brittiska pund': 'GDP',
+    'schweizerfranc': 'CHF',
 }
 
 
@@ -230,6 +232,7 @@ def extract_inled(in_str: str):
 
 
 def extract_forecast(text: str):
+    logging.debug(f"Extracting: {text}")
     result = parser_simple(text)
     if result is not None:
         return result

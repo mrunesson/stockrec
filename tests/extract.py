@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from stockrec.extract import parser_simple, extract_forecast
+from stockrec.extract import extract_forecast
 from stockrec.model import Forecast, Direction, Signal
 
 
