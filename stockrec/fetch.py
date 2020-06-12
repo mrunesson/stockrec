@@ -49,7 +49,7 @@ def get_forecasts(date=datetime.date.today()):
     logging.info(f"Handle forecasts for {date}.")
     html = retrieve_html(date)
     if html is not None:
-        return extract_forecasts(get_statements(html))
+        return extract_forecasts(get_statements(html), date)
     else:
         logging.warning(f"Forecast page not found for {date}.")
         return []

@@ -1,3 +1,5 @@
+import logging
+
 import pg8000
 
 from stockrec.model import Forecast, Signal, Direction
@@ -126,5 +128,27 @@ class ForecastStorage:
                         )
 
     def fetch_stored_raw(self):
-        records = self._con.run("SELECT raw FROM forecasts")
-        return [r[0] for r in records]
+        records = self._con.run(
+            """SELECT date,
+                      analyst,
+                      company,
+                      direction,
+                      signal,
+                      forecast_price,
+                      prev_signal,
+                      prev_forecast_price,
+                      currency,
+                      extractor,
+                      raw
+                FROM forecasts""")
+        return [Forecast(date=r[0],
+                         analyst=r[1],
+                         company=r[2],
+                         change_direction=Direction[r[3]],
+                         signal=Signal[r[4]],
+                         forecast_price=r[5],
+                         prev_signal=Signal[r[6]],
+                         prev_forecast_price=r[7],
+                         currency=r[8],
+                         extractor=r[9],
+                         raw=r[10]) for r in records]

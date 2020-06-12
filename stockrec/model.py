@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 from typing import Optional, NamedTuple
 from enum import Enum, unique
 
@@ -61,6 +62,6 @@ class Forecast(NamedTuple):
     company: Optional[str] = None
     signal: Signal = Signal.UNKNOWN
     prev_signal: Signal = Signal.UNKNOWN
-    forecast_price: Optional[float] = None
-    prev_forecast_price: Optional[float] = None
+    forecast_price: Optional[Decimal] = None
+    prev_forecast_price: Optional[Decimal] = None
     currency: Optional[str] = None

@@ -3,7 +3,7 @@ import logging
 
 import fire
 
-from stockrec.extract import extract_forecasts
+from stockrec.extract import extract_forecasts, extract_forecast
 from stockrec.fetch import get_forecasts
 from stockrec.pgstore import ForecastStorage
 
@@ -33,10 +33,23 @@ class Stockrec(object):
 
     def refresh(self):
         """Refresh values in database based on earlier refreshed strings. Useful after a recent update of stockrec."""
-        logging.critical("refresh command TBD")
         storage_con = ForecastStorage()
-        for f in extract_forecasts(storage_con.fetch_stored_raw()):
-            storage_con.store(f)
+        no_processed = 0
+        no_failed = 0
+        no_refreshed = 0
+        for f in storage_con.fetch_stored_raw():
+            no_processed += 1
+            new_f = extract_forecast(f.raw, f.date)
+            if f.extractor is None:
+                no_failed += 1
+                logging.warning(f"Could not extract: {f.raw}")
+            elif new_f != f:
+                no_refreshed += 1
+                storage_con.store(new_f)
+        percent_failed = int(100*float(no_failed)/float(no_processed))
+        percent_refreshed = int(100*float(no_refreshed)/float(no_processed))
+        logging.info(f"Of total {no_processed} forecasts, {no_failed}({percent_failed}%) could not be parsed.")
+        logging.info(f"Of total {no_processed} forecasts, {no_refreshed}({percent_refreshed}%) was updated.")
 
 
 if __name__ == '__main__':

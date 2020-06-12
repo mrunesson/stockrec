@@ -134,6 +134,19 @@ class TestSimpleExtractor(unittest.TestCase):
                   forecast_price=None,
                   prev_forecast_price=None,
                   currency=None
+                  )),
+        ('Goldman Sachs & Co sänker sin rekommendation för Outokumpu till neutral från köp.',
+         Forecast(extractor='bloomberg',
+                  raw='Goldman Sachs & Co sänker sin rekommendation för Outokumpu till neutral från köp.',
+                  date=datetime.date.today(),
+                  analyst='Goldman Sachs & Co',
+                  change_direction=Direction.LOWER,
+                  company='Outokumpu',
+                  signal=Signal.NEUTRAL,
+                  prev_signal=Signal.BUY,
+                  forecast_price=None,
+                  prev_forecast_price=None,
+                  currency=None
                   ))
     ]
 

@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import logging
 
 from stockrec import model
@@ -17,20 +18,27 @@ currencies = {
 }
 
 
-def to_float(value: str) -> float:
+def to_float(value: str):
     if value is not None:
         try:
-            return float(value.replace(',', '.').replace(':', '.'))
-        except ValueError:
+            return decimal.Decimal(value.replace(',', '.').replace(':', '.'))
+        except decimal.InvalidOperation:
             return None
     else:
         return None
 
 
 def idx_in_list(l: List[str], values: List[str]) -> List[int]:
-    # 'Carnegie sänker Thule till behåll (köp), riktkurs 220 kronor.'
-    # 'UBS höjer Vale till köp (neutral), riktkurs 12 dollar (13).\xa0'
     return [idx for idx, t in enumerate(l) if t in values]
+
+
+def single_idx_in_list(l: List[str], values: List[str]) -> int:
+    idx = idx_in_list(l, values)
+    if len(idx) == 0:
+        return -1
+    elif len(idx) > 1:
+        return -2
+    return idx[0]
 
 
 def is_parentheses_enclosed(value: str) -> bool:
@@ -105,12 +113,12 @@ def tokenize(text: str) -> List:
     return tokens
 
 
-def parser_simple(in_str: str):
+def extract_simple(text: str, date: datetime.date):
     # Kepler Cheuvreux sänker LVMH till behåll (köp), riktkurs 400 euro.
     # Bank of America Merrill Lynch sänker EQT till underperform (neutral)
-    if 'riktkursen för' in in_str:
+    if 'riktkursen för' in text:
         return None
-    tokens = tokenize(in_str)
+    tokens = tokenize(text)
     direction_idx = idx_in_list(tokens, text_to_direction.keys())
     till_idx = idx_in_list(tokens, ['till'])
     signal_idx = idx_in_list(tokens, text_to_signal.keys())
@@ -142,8 +150,8 @@ def parser_simple(in_str: str):
             currency = currencies[tokens[forecast_idx[0]+2]]
 
     forecast = model.Forecast(extractor='simple',
-                              raw=in_str,
-                              date=datetime.date.today(),
+                              raw=text,
+                              date=date,
                               analyst=' '.join(tokens[:direction_idx[0]]),
                               change_direction=Direction.from_text(tokens[direction_idx[0]]),
                               company=' '.join(tokens[direction_idx[0]+1:till_idx[0]]),
@@ -155,7 +163,7 @@ def parser_simple(in_str: str):
     return forecast
 
 
-def extract_bn(in_str: str):
+def extract_bn(in_str: str, date: datetime.date):
     # Morgan Stanley sänker riktkursen för Lundin Energy till 245 kronor (325), upprepar jämvikt - BN
     # Deutsche Bank höjer riktkursen för Boliden till 250 kronor från 235 kronor. Rekommendationen köp upprepas. Det framgår av ett marknadsbrev.
     tokens = tokenize(in_str)
@@ -194,7 +202,7 @@ def extract_bn(in_str: str):
 
     forecast = model.Forecast(extractor='bn',
                               raw=in_str,
-                              date=datetime.date.today(),
+                              date=date,
                               analyst=' '.join(tokens[:direction_idx[0]]),
                               change_direction=Direction.from_text(tokens[direction_idx[0]]),
                               company=' '.join(tokens[for_idx[0]+1:till_idx[0]]),
@@ -206,9 +214,9 @@ def extract_bn(in_str: str):
     return forecast
 
 
-def extract_inled(in_str: str):
+def extract_inled(text: str, date: datetime.date):
     # BTIG inleder bevakning på Tripadvisor med rekommendationen neutral.
-    tokens = tokenize(in_str)
+    tokens = tokenize(text)
     inleder_idx = idx_in_list(tokens, ['inleder'])
     med_idx = idx_in_list(tokens, ['med'])
 
@@ -218,8 +226,8 @@ def extract_inled(in_str: str):
         return None
 
     forecast = model.Forecast(extractor='inled',
-                              raw=in_str,
-                              date=datetime.date.today(),
+                              raw=text,
+                              date=date,
                               analyst=' '.join(tokens[:inleder_idx[0]]),
                               change_direction=Direction.NEW,
                               company=' '.join(tokens[inleder_idx[0]+3:med_idx[0]]),
@@ -231,25 +239,53 @@ def extract_inled(in_str: str):
     return forecast
 
 
-def extract_forecast(text: str):
+def extract_bloomberg(text: str, date: datetime.date):
+    "Goldman Sachs & Co sänker sin rekommendation för Outokumpu till neutral från köp."
+    tokens = tokenize(text)
+    sin_idx = single_idx_in_list(tokens, ['sin'])
+    for_idx = single_idx_in_list(tokens, ['för'])
+    till_idx = single_idx_in_list(tokens, ['till'])
+    fran_idx = single_idx_in_list(tokens, ['från'])
+
+    if not (0 < sin_idx < for_idx < till_idx < fran_idx):
+        return None
+
+    forecast = model.Forecast(extractor='bloomberg',
+                              raw=text,
+                              date=date,
+                              analyst=' '.join(tokens[:sin_idx-1]),
+                              change_direction=Direction.from_text(tokens[sin_idx-1]),
+                              company=' '.join(tokens[for_idx+1:till_idx]),
+                              signal=Signal.from_text(tokens[till_idx+1]),
+                              prev_signal=Signal.from_text(tokens[fran_idx+1]),
+                              forecast_price=None,
+                              prev_forecast_price=None,
+                              currency=None)
+    return forecast
+
+
+def extract_forecast(text: str, date: datetime.date):
     logging.debug(f"Extracting: {text}")
-    result = parser_simple(text)
+    result = extract_simple(text, date)
     if result is not None:
         return result
-    result = extract_bn(text)
+    result = extract_bn(text, date)
     if result is not None:
         return result
-    result = extract_inled(text)
+    result = extract_inled(text, date)
     if result is not None:
         return result
-    return model.Forecast(raw=text)
+    result = extract_bloomberg(text, date)
+    if result is not None:
+        return result
+    return model.Forecast(raw=text, date=date)
 
 
-def extract_forecasts(statements):
+def extract_forecasts(statements, date: datetime.date):
     no_processed = 0
     no_failed = 0
     for statement in statements:
-        forecast = extract_forecast(statement)
+        forecast = extract_forecast(statement, date)
         no_processed += 1
         if forecast.extractor is None:
             no_failed += 1
