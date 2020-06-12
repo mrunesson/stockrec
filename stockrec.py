@@ -3,7 +3,8 @@ import logging
 
 import fire
 
-from stockrec.fetch import get_forecast
+from stockrec.extract import extract_forecasts
+from stockrec.fetch import get_forecasts
 from stockrec.pgstore import ForecastStorage
 
 
@@ -16,7 +17,7 @@ class Stockrec(object):
     def today(self):
         """Scrape forecasts from today."""
         storage_con = ForecastStorage()
-        for f in get_forecast(datetime.date.today()):
+        for f in get_forecasts(datetime.date.today()):
             storage_con.store(f)
 
     def range(self, start, stop=datetime.date.today().isoformat()):
@@ -27,13 +28,15 @@ class Stockrec(object):
         day_count = (stop_date - start_date).days + 1
         for date in [start_date + datetime.timedelta(n) for n in range(day_count)]:
             logging.debug(f"Processing {date}.")
-            for f in get_forecast(date):
+            for f in get_forecasts(date):
                 storage_con.store(f)
 
     def refresh(self):
         """Refresh values in database based on earlier refreshed strings. Useful after a recent update of stockrec."""
         logging.critical("refresh command TBD")
-        pass
+        storage_con = ForecastStorage()
+        for f in extract_forecasts(storage_con.fetch_stored_raw()):
+            storage_con.store(f)
 
 
 if __name__ == '__main__':

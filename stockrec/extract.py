@@ -243,3 +243,17 @@ def extract_forecast(text: str):
     if result is not None:
         return result
     return model.Forecast(raw=text)
+
+
+def extract_forecasts(statements):
+    no_processed = 0
+    no_failed = 0
+    for statement in statements:
+        forecast = extract_forecast(statement)
+        no_processed += 1
+        if forecast.extractor is None:
+            no_failed += 1
+            logging.warning(f"Could not extract: {forecast.raw}")
+        yield forecast
+    percent = int(100*float(no_failed)/float(no_processed))
+    logging.info(f"Of total {no_processed} forecasts, {no_failed}({percent}%) could not be parsed.")

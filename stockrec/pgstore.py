@@ -124,3 +124,7 @@ class ForecastStorage:
                         raw=forecast.raw,
                         extractor=forecast.extractor
                         )
+
+    def fetch_stored_raw(self):
+        records = self._con.run("SELECT raw FROM forecasts")
+        return [r[0] for r in records]
