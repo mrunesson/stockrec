@@ -1,5 +1,6 @@
 import datetime
 import unittest
+from decimal import Decimal
 
 from stockrec.extract import extract_forecast
 from stockrec.model import Forecast, Direction, Signal
@@ -102,7 +103,7 @@ class TestSimpleExtractor(unittest.TestCase):
                   date=datetime.date.today(),
                   analyst='JP Morgan',
                   change_direction=Direction.LOWER,
-                  company='D.R Horton',
+                  company='D R Horton',
                   signal=Signal.NEUTRAL,
                   prev_signal=Signal.BUY,
                   forecast_price=59,
@@ -120,6 +121,19 @@ class TestSimpleExtractor(unittest.TestCase):
                   prev_signal=Signal.BUY,
                   forecast_price=250,
                   prev_forecast_price=235,
+                  currency='SEK'
+                  )),
+        ('Pareto Securities höjer riktkursen för investmentbolaget Kinnevik till 290 kronor från 262 kronor, enligt en ny analys.',
+         Forecast(extractor='bn',
+                  raw='Pareto Securities höjer riktkursen för investmentbolaget Kinnevik till 290 kronor från 262 kronor, enligt en ny analys.',
+                  date=datetime.date.today(),
+                  analyst='Pareto Securities',
+                  change_direction=Direction.RAISE,
+                  company='investmentbolaget Kinnevik',
+                  signal=Signal.UNKNOWN,
+                  prev_signal=Signal.UNKNOWN,
+                  forecast_price=290,
+                  prev_forecast_price=262,
                   currency='SEK'
                   )),
         ('BTIG inleder bevakning på Tripadvisor med rekommendationen neutral.',
@@ -147,12 +161,51 @@ class TestSimpleExtractor(unittest.TestCase):
                   forecast_price=None,
                   prev_forecast_price=None,
                   currency=None
-                  ))
+                  )),
+        ('Redeye höjer motiverat värde för Systemair till 168 kronor (155).',
+         Forecast(extractor='bn',
+                  raw='Redeye höjer motiverat värde för Systemair till 168 kronor (155).',
+                  date=datetime.date.today(),
+                  analyst='Redeye',
+                  change_direction=Direction.RAISE,
+                  company='Systemair',
+                  signal=Signal.UNKNOWN,
+                  prev_signal=Signal.UNKNOWN,
+                  forecast_price=Decimal(168),
+                  prev_forecast_price=Decimal(155),
+                  currency='SEK'
+                  )),
+        ('Redeye höjer sitt motiverade värde i basscenariot för bettingbolaget Enlabs till 30 kronor, från tidigare 29 kronor.',
+         Forecast(extractor='bn',
+                  raw='Redeye höjer sitt motiverade värde i basscenariot för bettingbolaget Enlabs till 30 kronor, från tidigare 29 kronor.',
+                  date=datetime.date.today(),
+                  analyst='Redeye',
+                  change_direction=Direction.RAISE,
+                  company='bettingbolaget Enlabs',
+                  signal=Signal.UNKNOWN,
+                  prev_signal=Signal.UNKNOWN,
+                  forecast_price=Decimal(30),
+                  prev_forecast_price=Decimal(29),
+                  currency='SEK'
+                  )),
+        ('Castellum höjs sitt behåll (sälj), med riktkurs 165 kronor (200)',
+         Forecast(extractor='no_analyst',
+                  raw='Castellum höjs sitt behåll (sälj), med riktkurs 165 kronor (200)',
+                  date=datetime.date.today(),
+                  analyst=None,
+                  change_direction=Direction.RAISE,
+                  company='Castellum',
+                  signal=Signal.HOLD,
+                  prev_signal=Signal.SELL,
+                  forecast_price=Decimal(165),
+                  prev_forecast_price=Decimal(200),
+                  currency='SEK'
+                  )),
     ]
 
     def test_extractor_simple(self):
         for s, expected in self.test_data:
-            self.assertEqual(expected, extract_forecast(s))
+            self.assertEqual(expected, extract_forecast(s, date=datetime.date.today()))
 
 
 

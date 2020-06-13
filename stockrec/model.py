@@ -49,7 +49,9 @@ class Direction(Enum):
 
 text_to_direction = {
     'sänker': Direction.LOWER,
+    'sänks': Direction.LOWER,
     'höjer': Direction.RAISE,
+    'höjs': Direction.RAISE,
 }
 
 

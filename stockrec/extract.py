@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import logging
+import re
 
 from stockrec import model
 from typing import List
@@ -14,6 +15,7 @@ currencies = {
     'danska kronor': 'DKK',
     'norska kronor': 'NOK',
     'brittiska pund': 'GDP',
+    'pund': 'GDP',
     'schweizerfranc': 'CHF',
 }
 
@@ -106,7 +108,9 @@ def merge_number_tokens(tokens: List) -> List:
 
 
 def tokenize(text: str) -> List:
-    tokens = [s.strip(u',.\xa0') for s in text.split(' ') if s != '']
+    cleaned_text = re.sub("\.([A-Z])", " \\1", text)
+    tokens = [s.strip(u',.\xa0') for s in cleaned_text.split(' ') if s != '']
+    tokens = [t for t in tokens if t not in ['*']]
     tokens = merge_number_tokens(tokens)
     tokens = merge_parenthesis_tokens(tokens)
     tokens = merge_terms_in_tokens(tokens)
@@ -166,6 +170,7 @@ def extract_simple(text: str, date: datetime.date):
 def extract_bn(in_str: str, date: datetime.date):
     # Morgan Stanley sänker riktkursen för Lundin Energy till 245 kronor (325), upprepar jämvikt - BN
     # Deutsche Bank höjer riktkursen för Boliden till 250 kronor från 235 kronor. Rekommendationen köp upprepas. Det framgår av ett marknadsbrev.
+    # Pareto Securities höjer riktkursen för investmentbolaget Kinnevik till 290 kronor från 262 kronor, enligt en ny analys.
     tokens = tokenize(in_str)
     direction_idx = idx_in_list(tokens, text_to_direction.keys())
     for_idx = idx_in_list(tokens, ['för'])
@@ -173,32 +178,36 @@ def extract_bn(in_str: str, date: datetime.date):
     fran_idx = idx_in_list(tokens, ['från'])
     signal_idx = idx_in_list(tokens, text_to_signal.keys())
 
-    if len(direction_idx) != 1 or len(till_idx) != 1 or len(for_idx) != 1 or len(signal_idx) != 1 or len(fran_idx) > 1:
+    if len(direction_idx) == 0 or len(till_idx) == 0 or len(for_idx) == 0:
         return None
     if direction_idx[0] > for_idx[0] or for_idx[0] > till_idx[0]:
         return None
 
-    signal=Signal.from_text(tokens[signal_idx[0]])
-    if 'upprepar' in tokens or 'upprepas' in tokens:
-        prev_signal = signal
-    else:
-        prev_signal_candidate = tokens[signal_idx[0] + 1]
-        if is_parentheses_enclosed(prev_signal_candidate):
-            prev_signal = prev_signal_candidate[1:-1]
+    signal = Signal.UNKNOWN
+    prev_signal = Signal.UNKNOWN
+    if len(signal_idx) > 0:
+        signal = Signal.from_text(tokens[signal_idx[0]])
+        if 'upprepar' in tokens or 'upprepas' in tokens:
+            prev_signal = signal
         else:
-            prev_signal = Signal.UNKNOWN
+            prev_signal_candidate = tokens[signal_idx[0] + 1]
+            if is_parentheses_enclosed(prev_signal_candidate):
+                prev_signal = Signal.from_text(prev_signal_candidate[1:-1])
 
     forecast_price = to_float(tokens[till_idx[0]+1])
+    currency = None
     prev_forecast_price = None
-    if len(fran_idx) != 0:
-        if tokens[fran_idx[0]+1].isnumeric():
-            prev_forecast_price = to_float(tokens[fran_idx[0]+1])
-        elif tokens[fran_idx[0]+2].isnumeric():
-            prev_forecast_price = to_float(tokens[fran_idx[0]+2])
-    else:
-        prev_forecast_price_candidate = tokens[till_idx[0] + 3]
-        if is_parentheses_enclosed(prev_forecast_price_candidate):
-            prev_forecast_price = to_float(prev_forecast_price_candidate[1:-1])
+    if forecast_price is not None:
+        currency= currencies[tokens[till_idx[0]+2]]
+        if len(fran_idx) != 0:
+            if tokens[fran_idx[0]+1].isnumeric():
+                prev_forecast_price = to_float(tokens[fran_idx[0]+1])
+            elif tokens[fran_idx[0]+2].isnumeric():
+                prev_forecast_price = to_float(tokens[fran_idx[0]+2])
+        else:
+            prev_forecast_price_candidate = tokens[till_idx[0] + 3]
+            if is_parentheses_enclosed(prev_forecast_price_candidate):
+                prev_forecast_price = to_float(prev_forecast_price_candidate[1:-1])
 
     forecast = model.Forecast(extractor='bn',
                               raw=in_str,
@@ -210,7 +219,43 @@ def extract_bn(in_str: str, date: datetime.date):
                               prev_signal=prev_signal,
                               forecast_price=forecast_price,
                               prev_forecast_price=prev_forecast_price,
-                              currency=currencies[tokens[till_idx[0]+2]])
+                              currency=currency)
+    return forecast
+
+
+def extract_no_analyst(text: str, date: datetime.date):
+    # Castellum höjs sitt behåll (sälj), med riktkurs 165 kronor (200)
+    tokens = tokenize(text)
+    direction_idx = single_idx_in_list(tokens, text_to_direction.keys())
+    sitt_idx = single_idx_in_list(tokens, ['sitt'])
+    riktkurs_idx = single_idx_in_list(tokens, ['riktkurs'])
+
+    if not(direction_idx < sitt_idx < riktkurs_idx):
+        return None
+
+    signal=Signal.from_text(tokens[sitt_idx+1])
+    prev_signal_candidate = tokens[sitt_idx+2]
+    if is_parentheses_enclosed(prev_signal_candidate):
+        prev_signal = Signal.from_text(prev_signal_candidate[1:-1])
+    else:
+        prev_signal = Signal.UNKNOWN
+
+    forecast_price = to_float(tokens[riktkurs_idx+1])
+    prev_forecast_price = None
+    if len(tokens) > riktkurs_idx+3:
+        prev_forecast_price = to_float(tokens[riktkurs_idx+3][1:-1])
+
+    forecast = model.Forecast(extractor='no_analyst',
+                              raw=text,
+                              date=date,
+                              analyst=None,
+                              change_direction=Direction.from_text(tokens[direction_idx]),
+                              company=' '.join(tokens[0:direction_idx]),
+                              signal=signal,
+                              prev_signal=prev_signal,
+                              forecast_price=forecast_price,
+                              prev_forecast_price=prev_forecast_price,
+                              currency=currencies[tokens[riktkurs_idx+2]])
     return forecast
 
 
@@ -240,7 +285,7 @@ def extract_inled(text: str, date: datetime.date):
 
 
 def extract_bloomberg(text: str, date: datetime.date):
-    "Goldman Sachs & Co sänker sin rekommendation för Outokumpu till neutral från köp."
+    # "Goldman Sachs & Co sänker sin rekommendation för Outokumpu till neutral från köp."
     tokens = tokenize(text)
     sin_idx = single_idx_in_list(tokens, ['sin'])
     for_idx = single_idx_in_list(tokens, ['för'])
@@ -264,18 +309,58 @@ def extract_bloomberg(text: str, date: datetime.date):
     return forecast
 
 
+def extract_motivated_value(text: str, date: datetime.date):
+    # "Redeye höjer motiverat värde för Systemair till 168 kronor (155)."
+    # Redeye höjer sitt motiverade värde i basscenariot för bettingbolaget Enlabs till 30 kronor, från tidigare 29 kronor.
+    # Might not be needed anymore after extract_bn generalised.
+    tokens = tokenize(text)
+    motiverat_idx = single_idx_in_list(tokens, ['motiverat'])
+    varde_idx = single_idx_in_list(tokens, ['värde'])
+    for_idx = single_idx_in_list(tokens, ['för',])
+    till_idx = single_idx_in_list(tokens, ['till'])
+
+    if motiverat_idx+1 != varde_idx:
+        return None
+    if for_idx > till_idx:
+        return None
+
+    prev_forecast_price = None
+    if len(tokens)-1 >= till_idx+3 and is_parentheses_enclosed(tokens[till_idx+3]):
+        prev_forecast_price = to_float(tokens[till_idx+3][1:-1])
+    currency=currencies[tokens[till_idx+2]]
+
+    forecast = model.Forecast(extractor='motivated_value',
+                              raw=text,
+                              date=date,
+                              analyst=' '.join(tokens[:motiverat_idx-1]),
+                              change_direction=Direction.from_text(tokens[motiverat_idx-1]),
+                              company=' '.join(tokens[for_idx+1:till_idx]),
+                              signal=Signal.UNKNOWN,
+                              prev_signal=Signal.UNKNOWN,
+                              forecast_price=to_float(tokens[till_idx+1]),
+                              prev_forecast_price=prev_forecast_price,
+                              currency=currency)
+    return forecast
+
+
 def extract_forecast(text: str, date: datetime.date):
     logging.debug(f"Extracting: {text}")
     result = extract_simple(text, date)
     if result is not None:
         return result
+    result = extract_bloomberg(text, date)
+    if result is not None:
+        return result
     result = extract_bn(text, date)
+    if result is not None:
+        return result
+    result = extract_no_analyst(text, date)
     if result is not None:
         return result
     result = extract_inled(text, date)
     if result is not None:
         return result
-    result = extract_bloomberg(text, date)
+    result = extract_motivated_value(text, date)
     if result is not None:
         return result
     return model.Forecast(raw=text, date=date)

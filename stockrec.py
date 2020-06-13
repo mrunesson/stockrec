@@ -40,7 +40,7 @@ class Stockrec(object):
         for f in storage_con.fetch_stored_raw():
             no_processed += 1
             new_f = extract_forecast(f.raw, f.date)
-            if f.extractor is None:
+            if new_f.extractor is None:
                 no_failed += 1
                 logging.warning(f"Could not extract: {f.raw}")
             elif new_f != f:
