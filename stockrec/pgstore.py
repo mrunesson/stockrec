@@ -1,4 +1,6 @@
 import logging
+import ssl
+from ssl import SSLContext
 
 import pg8000
 
@@ -17,7 +19,7 @@ class ForecastStorage:
                 NEW.last_updated = now();
                 RETURN NEW;   
             END;
-            $$ language 'plpgsql'"""
+            $$ language 'plpgsql'""",
         """CREATE TABLE IF NOT EXISTS forecasts (
            date                 DATE NOT NULL,
            analyst              TEXT NULL,
@@ -31,7 +33,7 @@ class ForecastStorage:
            raw                  TEXT NOT NULL CHECK (raw <> ''),
            extractor            VARCHAR(20) CHECK (extractor <> '' OR extractor IS NULL),
            md5                  VARCHAR(32) NOT NULL CHECK (length(md5) = 32) PRIMARY KEY,
-           lock                 BOOLEAN NOT NULL DEFAULT FALSE,
+           locked               BOOLEAN NOT NULL DEFAULT FALSE,
            last_updated         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
            )""",
         """CREATE TRIGGER set_update_time 
@@ -41,10 +43,13 @@ class ForecastStorage:
 
     def __init__(self):
         user = os.getenv("PG_USER", 'postgres')
-        password = os.getenv("PG_PASSWORD", 'postgres')
+        password = os.getenv("PG_PASSWORD", None)
         self._database = os.getenv("PG_DATABASE", 'postgres')
         host = os.getenv("PG_HOST", 'localhost')
         port = int(os.getenv("PG_PORT", '5432'))
+        ssl_context = SSLContext()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
         self._con = pg8000.connect(user, host, self._database, port, password)
         self._con.autocommit = True
         self._create_schema()

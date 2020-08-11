@@ -17,6 +17,7 @@ currencies = {
     'brittiska pund': 'GDP',
     'pund': 'GDP',
     'schweizerfranc': 'CHF',
+    'kanadensiska dollar': 'CAD',
 }
 
 
@@ -65,11 +66,14 @@ def merge_parenthesis_tokens(tokens: List) -> List:
     return result
 
 
-_terms = ['market perform', 'sector perform', 'norska kronor', 'danska kronor', 'brittiska pund']
+_terms = ['market perform', 'sector perform', 'norska kronor', 'danska kronor', 'brittiska pund', 'kanadensiska dollar']
 _terms_start = [term.split( )[0] for term in _terms]
 
 
 def merge_terms_in_tokens(tokens: List) -> List:
+    """
+    Merge terms that consists of multiple words into one term. For instance 'market perform'.
+    """
     result=[]
     holder=None
     for t in tokens:
@@ -88,17 +92,33 @@ def merge_terms_in_tokens(tokens: List) -> List:
     return result
 
 
+def is_numeric(str: str) -> bool:
+    if str.isnumeric():
+        return True
+    if str[:-1].isnumeric():
+        return True
+    if str[1:].isnumeric():
+        return True
+    tokens = str.split(",")
+    if len(tokens)==2 and tokens[0].isnumeric and tokens[1].isnumeric:
+        return True
+    return False
+    
+
 def merge_number_tokens(tokens: List) -> List:
+    """
+    Merge numbers into a single token. For instance '1 000,5'."
+    """
     result=[]
     holder=None
     for t in tokens:
         if holder is None:
-            if t.isnumeric() or t[1:].isnumeric():
+            if is_numeric(t):
                 holder = t
             else:
                 result.append(t)
         else:
-            if t.isnumeric() or t[:-1].isnumeric():
+            if is_numeric(t):
                 holder += t
             else:
                 result.append(holder)
@@ -189,7 +209,7 @@ def extract_bn(in_str: str, date: datetime.date):
         signal = Signal.from_text(tokens[signal_idx[0]])
         if 'upprepar' in tokens or 'upprepas' in tokens:
             prev_signal = signal
-        else:
+        elif len(tokens) > signal_idx[0] + 1:
             prev_signal_candidate = tokens[signal_idx[0] + 1]
             if is_parentheses_enclosed(prev_signal_candidate):
                 prev_signal = Signal.from_text(prev_signal_candidate[1:-1])

@@ -14,10 +14,10 @@ class Stockrec(object):
     def __init__(self, log_level='INFO'):
         logging.basicConfig(level=log_level)
 
-    def today(self):
+    def today(self, url=None):
         """Scrape forecasts from today."""
         storage_con = ForecastStorage()
-        for f in get_forecasts(datetime.date.today()):
+        for f in get_forecasts(datetime.date.today(), url):
             storage_con.store(f)
 
     def range(self, start, stop=datetime.date.today().isoformat()):
