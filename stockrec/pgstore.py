@@ -54,9 +54,6 @@ class ForecastStorage:
         self._con.autocommit = True
         self._create_schema()
 
-    def __del__(self):
-        self._con.close()
-
     def _has_forecast_table(self) -> bool:
         return len(
             self._con.run(
