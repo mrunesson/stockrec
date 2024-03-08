@@ -3,7 +3,7 @@ import logging
 
 import fire
 
-from stockrec.extract import extract_forecasts, extract_forecast
+from stockrec.extract import extract_forecast
 from stockrec.fetch import get_forecasts
 from stockrec.pgstore import ForecastStorage
 
@@ -22,8 +22,8 @@ class Stockrec(object):
 
     def range(self, start, stop=datetime.date.today().isoformat()):
         """Scrape forecasts from start date to stop date."""
-        start_date = datetime.date.fromisoformat(start)
-        stop_date = datetime.date.fromisoformat(stop)
+        start_date = datetime.date.fromisoformat(start[:10])
+        stop_date = datetime.date.fromisoformat(stop[:10])
         storage_con = ForecastStorage()
         day_count = (stop_date - start_date).days + 1
         for date in [start_date + datetime.timedelta(n) for n in range(day_count)]:
