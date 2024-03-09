@@ -46,7 +46,7 @@ def retrieve_html(date: datetime.date, url=None) -> str:
 
 def get_statements(html: str) -> List:
     soup = BeautifulSoup(html, 'html.parser')
-    potential_rec = [p.get_text() for p in soup.find_all('div', 'parbase rich-text section text')[0].find_all('p')]
+    potential_rec = [p.get_text() for p in soup.find_all('div', 'rich-text text parbase section')[0].find_all('p')]
 
     for p in potential_rec:
         statement = p.strip()
