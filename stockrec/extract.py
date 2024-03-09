@@ -128,7 +128,7 @@ def merge_number_tokens(tokens: List) -> List:
 
 
 def tokenize(text: str) -> List:
-    cleaned_text = re.sub("\.([A-Z])", " \\1", text)
+    cleaned_text = re.sub(".([A-Z])", " \\1", text)
     tokens = [s.strip(u',.\xa0') for s in cleaned_text.split(' ') if s != '']
     tokens = [t for t in tokens if t not in ['*']]
     tokens = merge_number_tokens(tokens)
